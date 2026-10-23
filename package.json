@@ -1,0 +1,16 @@
+{
+  "name": "redteam-skills-portable",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "dsh-purge red-team skills repackaged for any IDE (AGENTS.md / Cursor / Windsurf / Claude / Copilot / Kiro / Qoder / Roo / Trae / Continue / Zed)",
+  "scripts": {
+    "build": "node build.mjs",
+    "setup": "node install.mjs",
+    "list": "node install.mjs --list"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}
