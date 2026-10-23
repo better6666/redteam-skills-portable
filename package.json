@@ -1,9 +1,9 @@
 {
   "name": "redteam-skills-portable",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "dsh-purge red-team skills repackaged for any IDE (AGENTS.md / Cursor / Windsurf / Claude / Copilot / Kiro / Qoder / Roo / Trae / Continue / Zed)",
+  "description": "dsh-purge red-team skills repackaged for 29 IDE/agent hosts (AGENTS.md, Claude, Codex, ZCode, Antigravity, Qoder, WorkBuddy, DSH, Kiro, Cursor, Devin, CodeBuddy, Trae, Gemini, Copilot, Windsurf, Cline, Roo, Continue, Zed, Amazon Q, Junie, Augment, Kilo, Aider, Warp, Qwen, Firebase, Goose)",
   "scripts": {
     "build": "node build.mjs",
     "setup": "node install.mjs",

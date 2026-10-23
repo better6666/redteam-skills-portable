@@ -4,68 +4,100 @@
 
 - 单一事实源：`skills/<name>/SKILL.md`
 - 一条命令生成所有 IDE 入口：`node build.mjs`
-- 一条命令装进项目：`node install.mjs --target <项目目录> --ide auto`
-- 只按需读取：规则里只放索引，命中任务才打开对应 `SKILL.md`，不会一次性塞满上下文
+- 装进项目：`node install.mjs --target <项目目录> --ide auto`
+- 装到用户目录：`node install.mjs --global --ide all`
+- 只按需读取：规则里只放索引，命中任务才打开对应 `SKILL.md`
 
-## 目录
+## 覆盖范围
 
-```
-redteam-skills-portable/
-├── skills/<name>/SKILL.md      # 23 个技能，唯一需要维护的源
-├── build.mjs                   # 从源生成 dist/ 下各 IDE 格式
-├── install.mjs                 # 检测 IDE 并装进目标项目
-├── dist/                       # 生成物（可直接整目录拷走）
-└── README.md
-```
+三层兜底，不管什么工具至少能吃其中一层：
+
+| 层 | 路径 | 谁在读 |
+| --- | --- | --- |
+| 通用指令 | `AGENTS.md` | Codex、Antigravity、Devin、Trae、Qoder、CodeBuddy、WorkBuddy、ZCode、Cursor、Copilot、Amp、OpenCode、Crush、Factory、Jules 等 60k+ 项目在用的开放格式 |
+| 通用规则目录 | `.agents/rules/*.md` | Google Antigravity（也认 `AGENTS.md` / `GEMINI.md`） |
+| 通用技能目录 | `.agents/skills/<name>/SKILL.md` | DeepSeek Harness、Antigravity，以及所有遵循 Agent Skills 的宿主 |
 
 ## 快速开始
 
 ```bash
-# 1. 生成
+# 生成 dist/
 node build.mjs
 
-# 2. 看支持哪些 IDE
+# 看支持哪些 IDE
 node install.mjs --list
 
-# 3. 装进某个项目（自动检测）
+# 装进某个项目（自动检测目录）
 node install.mjs --target ~/work/my-project --ide auto
 
-# 或一次全装
+# 一次全装（29 个适配器）
 node install.mjs --target ~/work/my-project --ide all
 
 # 只装指定 IDE
-node install.mjs --target ~/work/my-project --ide cursor,claude,qoder
+node install.mjs --target ~/work/my-project --ide cursor,claude,qoder,codebuddy
+
+# 装到用户目录：所有项目都能用
+node install.mjs --global --ide all
+
+# 只装全局技能，不写全局规则
+node install.mjs --global --skills-only
 ```
 
-`--dry-run` 只打印不落盘。重复执行是幂等的：共享文件用 `<!-- redteam-skills:start/end -->` 标记块更新，不会叠加。
+`--dry-run` 只打印不落盘。重复执行幂等：共享文件用 `<!-- redteam-skills:start/end -->` 标记块更新，不会叠加。
 
-## IDE 接入对照
+## IDE 对照表
 
-| IDE | 写入位置 | 格式 |
-| --- | --- | --- |
-| 通用 / Codex | `AGENTS.md` | 标记块 |
-| Claude Code | `CLAUDE.md` + `.claude/skills/` | 标记块 + 原生 Skill |
-| Gemini CLI | `GEMINI.md` | 标记块 |
-| Cursor | `.cursor/rules/00-redteam.mdc` | MDC，`alwaysApply: true` |
-| Windsurf | `.windsurf/rules/00-redteam.md` | `trigger: always_on` |
-| Cline | `.clinerules/00-redteam.md` | 纯 Markdown |
-| GitHub Copilot | `.github/copilot-instructions.md` | 标记块 |
-| Kiro | `.kiro/steering/redteam-skills.md` | `inclusion: always` |
-| Qoder | `.qoder/rules/redteam-skills.md` + `.qoder/skills/` | `trigger: always_on` + 原生 Skill |
-| Roo Code | `.roo/rules/00-redteam.md` | 纯 Markdown |
-| Trae | `.trae/rules/project_rules.md` | 标记块 |
-| Continue | `.continue/rules/redteam-skills.md` | `alwaysApply: true` |
-| Zed | `.rules` | 标记块 |
+| 工具 | 项目级入口 | 全局目录（`--global`） | 说明 |
+| --- | --- | --- | --- |
+| **Codex** | `AGENTS.md` | `~/.codex/AGENTS.md` + `~/.codex/skills/` | 通用格式 |
+| **Claude Code** | `CLAUDE.md` + `.claude/skills/` | `~/.claude/CLAUDE.md` + `~/.claude/skills/` | 原生 Skill |
+| **Gemini CLI** | `GEMINI.md` | `~/.gemini/GEMINI.md` | |
+| **Cursor** | `.cursor/rules/00-redteam.mdc` | — | `alwaysApply: true` |
+| **Windsurf** | `.windsurf/rules/00-redteam.md` | — | `trigger: always_on` |
+| **Cline** | `.clinerules/00-redteam.md` | — | |
+| **GitHub Copilot** | `.github/copilot-instructions.md` | — | |
+| **Kiro** | `.kiro/steering/redteam-skills.md` | `~/.kiro/steering/` | `inclusion: always` |
+| **Qoder** | `.qoder/rules/redteam-skills.md` + `.qoder/skills/` | `~/.qoder/rules/` + `~/.qoder/skills/` | 原生 Skill |
+| **Roo Code** | `.roo/rules/00-redteam.md` | — | |
+| **Trae（国际/国内）** | `.trae/rules/project_rules.md` + `.trae/skills/` | `~/.trae/skills/` | 项目文件两版一致 |
+| **Continue** | `.continue/rules/redteam-skills.md` | — | `alwaysApply: true` |
+| **Zed** | `.rules` | — | |
+| **CodeBuddy（国际/国内）** | `CODEBUDDY.md` + `.codebuddy/rules/redteam-skills/RULE.mdc` + `.codebuddy/skills/` | `~/.codebuddy/skills/` | `AGENTS.md` 是 fallback |
+| **WorkBuddy** | `WORKBUDDY.md` + `.workbuddy/skills/` | `~/.workbuddy/skills/` | 也读 `AGENTS.md` |
+| **ZCode** | `AGENTS.md` + `.zcode/skills/` | `~/.zcode/skills/` | 也读 `CLAUDE.md` |
+| **Devin** | `AGENTS.md` + `.devin/rules/redteam-skills.md` | — | 官方主推 `AGENTS.md` |
+| **Google Antigravity** | `AGENTS.md` / `GEMINI.md` / `.agents/rules/` + `.agents/skills/` | — | 三个入口任选其一即可 |
+| **DeepSeek Harness（DSH）** | `AGENTS.md` + `.agents/skills/` | `~/.agents/skills/` + `~/.dsh/skills/` | 技能是原生机制 |
+| **Amazon Q Developer** | `.amazonq/rules/redteam-skills.md` | — | |
+| **JetBrains Junie** | `.junie/guidelines.md` | — | |
+| **Augment Code** | `.augment/rules/redteam-skills.md` | — | |
+| **Kilo Code** | `.kilocode/rules/redteam-skills.md` | — | |
+| **Aider** | `CONVENTIONS.md` | — | 需在 aider 配置里 `read` 该文件 |
+| **Warp** | `WARP.md` | — | |
+| **Qwen Code** | `QWEN.md` | — | |
+| **Firebase Studio** | `.idx/airules.md` | — | |
+| **Goose** | `.goosehints` | — | |
 
-所有 IDE 共用根目录的 `skills/`。索引里写的是 `skills/<name>/SKILL.md`，Agent 按需读取。
+没列到的工具：只要它读 `AGENTS.md`、`.agents/rules/` 或 `.agents/skills/` 任意一个，装 `--ide agents` 或 `--ide all` 就能用。VS Code 系的国产 IDE（通义灵码、豆包 MarsCode、Comate 等）多数也兼容 `AGENTS.md` 或自家 rules 目录，装完看一次 `--list` 即可。
+
+## 国内版 / 国际版
+
+项目内的规则文件名两边一致，差异只在应用配置目录：
+
+- CodeBuddy：国际版 `~/.codebuddy`，国内版 `~/.codebuddycn`；项目里都认 `CODEBUDDY.md`。
+- Trae：国际版/国内版都读 `.trae/rules/`，技能都放 `.trae/skills/`。
+- Qoder：Desktop 和 Qoder IDE 都读 `.qoder/rules/`。
+- ZCode / WorkBuddy / DSH：项目级都用 `AGENTS.md`，全局技能目录各归各家。
+
+`--global` 只写本机实际存在的通用目录；应用若把用户规则存在设置/数据库里，项目级文件仍然有效，全局规则需要在该应用设置里手动加一次。
 
 ## 为什么只放索引
 
 23 份技能全文约 150KB。全量写进 `always_on` 规则会挤爆上下文，也超出 Windsurf 单文件 6000 字符这类限制。所以：
 
 - 常驻规则 = 一张 23 行的索引表（名称 / 角色 / 用途 / 何时用）
-- 技能正文 = 独立的 `SKILL.md`，由 Agent 在命中任务时自己打开
-- Claude Code / Qoder 额外镜像到原生 skills 目录，支持自动发现
+- 技能正文 = 独立的 `SKILL.md`，Agent 命中任务时自己打开
+- 有原生 Skill 机制的宿主（Claude Code、Qoder、Trae、CodeBuddy、WorkBuddy、ZCode、DSH、Antigravity）额外镜像到各自的 skills 目录
 
 ## 工具路径
 
@@ -77,7 +109,7 @@ node install.mjs --target ~/work/my-project --ide cursor,claude,qoder
 ~/.local/nuclei-templates
 ```
 
-换机器时按实际安装位置替换。也可以在项目里导出 `RT_TOOLKIT` 指向工具箱根目录，再把技能里的 `~/.dsh/redteam/toolkit` 统一换掉。
+换机器时按实际安装位置替换，或导出 `RT_TOOLKIT` 指向工具箱根目录。
 
 ## 范围说明
 

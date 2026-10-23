@@ -19,7 +19,7 @@ const ROLE_LABEL = {
   internal: "内网",
 };
 
-export const VERSION = "1.0.0";
+export const VERSION = "1.1.0";
 
 function parseFrontmatter(raw) {
   const m = raw.match(/^---\n([\s\S]*?)\n---\n?/);
@@ -109,6 +109,9 @@ function ruleFile({ rel, frontmatter, body, banner = true }) {
 }
 
 export function build({ out = path.join(ROOT, "dist") } = {}) {
+  if (path.resolve(out) === path.join(ROOT, "dist")) {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
   const skills = loadSkills();
   const body = renderIndex(skills);
   const desc = `红队技能库索引：${skills.length} 个技能，命中任务时读取 skills/<name>/SKILL.md`;
@@ -118,8 +121,16 @@ export function build({ out = path.join(ROOT, "dist") } = {}) {
     "AGENTS.md",
     "CLAUDE.md",
     "GEMINI.md",
+    "CODEBUDDY.md",
+    "WORKBUDDY.md",
+    "CONVENTIONS.md",
+    "WARP.md",
+    "QWEN.md",
     ".github/copilot-instructions.md",
     ".trae/rules/project_rules.md",
+    ".junie/guidelines.md",
+    ".idx/airules.md",
+    ".goosehints",
     ".rules",
   ];
   for (const rel of shared) files.push(ruleFile({ rel, body }));
@@ -147,6 +158,15 @@ export function build({ out = path.join(ROOT, "dist") } = {}) {
       rel: ".continue/rules/redteam-skills.md",
       fm: `---\ndescription: ${desc}\nalwaysApply: true\n---`,
     },
+    {
+      rel: ".codebuddy/rules/redteam-skills/RULE.mdc",
+      fm: `---\ndescription: ${desc}\nglobs:\nalwaysApply: true\n---`,
+    },
+    { rel: ".devin/rules/redteam-skills.md", fm: "" },
+    { rel: ".agents/rules/redteam-skills.md", fm: "" },
+    { rel: ".amazonq/rules/redteam-skills.md", fm: "" },
+    { rel: ".augment/rules/redteam-skills.md", fm: "" },
+    { rel: ".kilocode/rules/redteam-skills.md", fm: "" },
   ];
   for (const d of dedicated) {
     files.push(ruleFile({ rel: d.rel, frontmatter: d.fm, body }));
@@ -159,7 +179,7 @@ export function build({ out = path.join(ROOT, "dist") } = {}) {
   }
 
   for (const s of skills) {
-    for (const base of ["skills", ".claude/skills", ".qoder/skills"]) {
+    for (const base of ["skills", ".agents/skills"]) {
       const dir = path.join(out, base, s.name);
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, "SKILL.md"), s.raw, "utf8");
@@ -176,6 +196,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
   const { skills, files } = build({ out });
   console.log(`已生成 ${skills.length} 个技能 / ${files.length} 个规则入口`);
   for (const f of files) console.log(`  + ${f.rel}`);
-  console.log(`  + skills/ .claude/skills/ .qoder/skills/（各 ${skills.length} 份 SKILL.md）`);
+  console.log(`  + skills/ .agents/skills/（各 ${skills.length} 份 SKILL.md）`);
   console.log(`输出：${out}`);
 }
