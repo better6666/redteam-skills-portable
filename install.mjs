@@ -46,6 +46,13 @@ export const TARGETS = {
     skillsDir: ".codebuddy/skills",
     detect: ["CODEBUDDY.md", ".codebuddy"],
   },
+  codebuddycn: {
+    label: "CodeBuddy 国内版（.codebuddycn）",
+    shared: "CODEBUDDY.md",
+    dedicated: ".codebuddy/rules/redteam-skills/RULE.mdc",
+    skillsDir: ".codebuddycn/skills",
+    detect: [".codebuddycn"],
+  },
   workbuddy: { label: "WorkBuddy", shared: "WORKBUDDY.md", skillsDir: ".workbuddy/skills", detect: ["WORKBUDDY.md", ".workbuddy"] },
   zcode: { label: "ZCode", shared: "AGENTS.md", skillsDir: ".zcode/skills", detect: [".zcode"] },
   devin: { label: "Devin", shared: "AGENTS.md", dedicated: ".devin/rules/redteam-skills.md", detect: [".devin"] },
@@ -78,6 +85,7 @@ export const GLOBAL_TARGETS = {
   dsh: { label: "DeepSeek Harness", skills: ".dsh/skills" },
   trae: { label: "Trae", skills: ".trae/skills" },
   codebuddy: { label: "CodeBuddy", skills: ".codebuddy/skills" },
+  codebuddycn: { label: "CodeBuddy 国内版", skills: ".codebuddycn/skills" },
   workbuddy: { label: "WorkBuddy", skills: ".workbuddy/skills" },
   zcode: { label: "ZCode", skills: ".zcode/skills" },
 };

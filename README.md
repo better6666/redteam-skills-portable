@@ -30,7 +30,7 @@ node install.mjs --list
 # 装进某个项目（自动检测目录）
 node install.mjs --target ~/work/my-project --ide auto
 
-# 一次全装（29 个适配器）
+# 一次全装（30 个适配器）
 node install.mjs --target ~/work/my-project --ide all
 
 # 只装指定 IDE
@@ -62,7 +62,7 @@ node install.mjs --global --skills-only
 | **Trae（国际/国内）** | `.trae/rules/project_rules.md` + `.trae/skills/` | `~/.trae/skills/` | 项目文件两版一致 |
 | **Continue** | `.continue/rules/redteam-skills.md` | — | `alwaysApply: true` |
 | **Zed** | `.rules` | — | |
-| **CodeBuddy（国际/国内）** | `CODEBUDDY.md` + `.codebuddy/rules/redteam-skills/RULE.mdc` + `.codebuddy/skills/` | `~/.codebuddy/skills/` | `AGENTS.md` 是 fallback |
+| **CodeBuddy（国际/国内）** | `CODEBUDDY.md` + `.codebuddy/rules/redteam-skills/RULE.mdc` + `.codebuddy/skills/` | `~/.codebuddy/skills/`、`~/.codebuddycn/skills/` | `AGENTS.md` 是 fallback |
 | **WorkBuddy** | `WORKBUDDY.md` + `.workbuddy/skills/` | `~/.workbuddy/skills/` | 也读 `AGENTS.md` |
 | **ZCode** | `AGENTS.md` + `.zcode/skills/` | `~/.zcode/skills/` | 也读 `CLAUDE.md` |
 | **Devin** | `AGENTS.md` + `.devin/rules/redteam-skills.md` | — | 官方主推 `AGENTS.md` |
