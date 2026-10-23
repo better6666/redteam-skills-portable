@@ -1,16 +1,23 @@
 {
   "name": "redteam-skills-portable",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "dsh-purge red-team skills repackaged for 30 IDE/agent hosts (AGENTS.md, Claude, Codex, ZCode, Antigravity, Qoder, WorkBuddy, DSH, Kiro, Cursor, Devin, CodeBuddy, Trae, Gemini, Copilot, Windsurf, Cline, Roo, Continue, Zed, Amazon Q, Junie, Augment, Kilo, Aider, Warp, Qwen, Firebase, Goose)",
+  "description": "DSH red-team skills ported to 30 IDE/agent hosts: host-private tool calls rewritten to a built-in record.sh, single skill source with symlinked mirrors, manifest-based install/uninstall",
   "scripts": {
     "build": "node build.mjs",
+    "build:raw": "node build.mjs --raw",
     "setup": "node install.mjs",
-    "list": "node install.mjs --list"
+    "list": "node install.mjs --list",
+    "doctor": "bash lib/record.sh doctor",
+    "test": "node test.mjs",
+    "verify": "node build.mjs && node test.mjs"
   },
   "license": "MIT",
   "engines": {
     "node": ">=18"
+  },
+  "bin": {
+    "redteam-record": "lib/record.sh"
   }
 }
