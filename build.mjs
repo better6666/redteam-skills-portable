@@ -30,10 +30,10 @@ export const ROLE_LABEL = {
 export const VERSION = "2.0.0";
 
 function parseFrontmatter(raw) {
-  const m = raw.match(/^---\n([\s\S]*?)\n---\n?/);
+  const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (!m) return {};
   const out = {};
-  for (const line of m[1].split("\n")) {
+  for (const line of m[1].split(/\r?\n/)) {
     const i = line.indexOf(":");
     if (i < 0) continue;
     out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
@@ -250,7 +250,10 @@ export function build({ out = path.join(ROOT, "dist"), raw = false } = {}) {
       rel: ".codebuddy/general/rules/redteam-skills/RULE.mdc",
       fm: `---\ndescription: ${desc}\nglobs:\nalwaysApply: true\n---`,
     },
-    { rel: ".devin/rules/redteam-skills.md", fm: "" },
+    {
+      rel: ".devin/rules/redteam-skills.md",
+      fm: `---\ndescription: ${desc}\ntrigger: always_on\n---`,
+    },
     { rel: ".agents/rules/redteam-skills.md", fm: "" },
     { rel: ".amazonq/rules/redteam-skills.md", fm: "" },
     { rel: ".augment/rules/redteam-skills.md", fm: "" },

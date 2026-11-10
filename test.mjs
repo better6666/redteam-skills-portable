@@ -11,7 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { execFileSync, execSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const VERBOSE = process.argv.includes("-v");
@@ -36,12 +36,21 @@ function check(name, cond, detail = "") {
 function section(t) {
   console.log(`\n\x1b[36m${t}\x1b[0m`);
 }
+// Windows 上 execSync 默认走 cmd.exe，find/readlink/md5sum 全是 unix 语法 → 显式走 Git Bash
+const BASH =
+  process.platform === "win32"
+    ? ["C:\\Program Files\\Git\\usr\\bin\\bash.exe", "C:\\Program Files (x86)\\Git\\usr\\bin\\bash.exe"].find((p) =>
+        fs.existsSync(p)
+      ) || "bash"
+    : undefined;
+// md5 -q 是 macOS/BSD 语法；Git Bash 与 Linux 都是 coreutils 的 md5sum
+const MD5 = process.platform === "darwin" ? 'md5 -q "$1"' : 'md5sum "$1" | cut -d" " -f1';
 function sh(cmd, opts = {}) {
-  return execSync(cmd, { encoding: "utf8", stdio: VERBOSE ? "inherit" : "pipe", ...opts });
+  return execSync(cmd, { encoding: "utf8", stdio: VERBOSE ? "inherit" : "pipe", shell: BASH, ...opts });
 }
 function shOut(cmd, opts = {}) {
   try {
-    return execSync(cmd, { encoding: "utf8", stdio: "pipe", ...opts }).trim();
+    return execSync(cmd, { encoding: "utf8", stdio: "pipe", shell: BASH, ...opts }).trim();
   } catch (e) {
     return `__ERR__${e.status}:${(e.stderr || e.message || "").slice(0, 200)}`;
   }
@@ -61,12 +70,14 @@ const NODE = process.execPath;
 const BUILD = path.join(ROOT, "build.mjs");
 const INSTALL = path.join(ROOT, "install.mjs");
 const RECORD = path.join(ROOT, "lib", "record.sh");
+// 嵌进 bash 命令串的路径必须先转 POSIX（C:\x → /c/x），node/fs 侧仍用原生路径
+const P = (p) => String(p).replace(/^([A-Za-z]):[\\/]/, (_, d) => `/${d.toLowerCase()}/`).replace(/\\/g, "/");
 
 // ═══ 1. 移植 ══════════════════════════════════════════════════════════════
 section("1. 移植：宿主私有依赖是否清零");
 
-const ported = await import(path.join(ROOT, "lib", "port.mjs"));
-const skills = (await import(path.join(ROOT, "build.mjs"))).loadSkills();
+const ported = await import(pathToFileURL(path.join(ROOT, "lib", "port.mjs")).href);
+const skills = (await import(pathToFileURL(path.join(ROOT, "build.mjs")).href)).loadSkills();
 check(`加载 ${skills.length} 个技能`, skills.length === 23, `期望 23`);
 
 const residue = skills.filter((s) => s.problems.length);
@@ -100,23 +111,25 @@ check("whenToUse 已并入 description", descOk === 23, `${descOk}/23`);
 section("2. 构建：可复现、幂等、不误删");
 
 const DIST = path.join(ROOT, "dist");
-sh(`"${NODE}" "${BUILD}"`);
+sh(`"${P(NODE)}" "${P(BUILD)}"`);
 check("dist/AGENTS.md 生成", exists(path.join(DIST, "AGENTS.md")));
 check("dist/lib/record.sh 生成", exists(path.join(DIST, "lib", "record.sh")));
 check("dist/skills 有 23 份", countSkill(path.join(DIST, "skills")) === 23);
 
 const snapOf = () =>
-  shOut(`cd "${DIST}" && find . -type f ! -name '.redteam-manifest.json' -exec md5 -q {} \\; | sort | md5`);
+  shOut(
+    `cd "${P(DIST)}" && find . -type f ! -name '.redteam-manifest.json' -print0 | sort -z | xargs -0 md5sum | md5sum`
+  );
 const snap1 = snapOf();
-sh(`"${NODE}" "${BUILD}"`);
+sh(`"${P(NODE)}" "${P(BUILD)}"`);
 const snap2 = snapOf();
 check("二次构建结果一致", snap1 === snap2, `${snap1} vs ${snap2}`);
 
 // --out 到外部目录：不残留、不误删用户文件
 const OUT = path.join(TMP, "custom-out");
-sh(`"${NODE}" "${BUILD}" --out "${OUT}"`);
+sh(`"${P(NODE)}" "${P(BUILD)}" --out "${P(OUT)}"`);
 fs.writeFileSync(path.join(OUT, "USER_FILE.txt"), "mine");
-sh(`"${NODE}" "${BUILD}" --out "${OUT}"`);
+sh(`"${P(NODE)}" "${P(BUILD)}" --out "${P(OUT)}"`);
 check("--out 不残留旧产物", !exists(path.join(OUT, "STALE.md")));
 check("--out 不误删用户文件", exists(path.join(OUT, "USER_FILE.txt")));
 
@@ -130,9 +143,10 @@ fs.writeFileSync(
 let guardOut = "";
 let guardExit = 0;
 try {
-  guardOut = execSync(`"${NODE}" "${BUILD}" --out "${path.join(TMP, "guard")}" 2>&1`, {
+  guardOut = execSync(`"${P(NODE)}" "${P(BUILD)}" --out "${P(path.join(TMP, "guard"))}" 2>&1`, {
     encoding: "utf8",
     stdio: "pipe",
+    shell: BASH,
   });
 } catch (e) {
   guardExit = e.status ?? 1;
@@ -151,11 +165,13 @@ section("3. 项目级安装：链接、幂等、内容正确");
 
 const PROJ = path.join(TMP, "proj");
 fs.mkdirSync(PROJ, { recursive: true });
-sh(`"${NODE}" "${INSTALL}" --target "${PROJ}" --ide all`);
+sh(`"${P(NODE)}" "${P(INSTALL)}" --target "${P(PROJ)}" --ide all`);
 
 check("skills/ 真身 23 份", countSkill(path.join(PROJ, "skills")) === 23);
 check("lib/record.sh 就位", exists(path.join(PROJ, "lib", "record.sh")));
-check("record.sh 可执行", (fs.statSync(path.join(PROJ, "lib", "record.sh")).mode & 0o111) !== 0);
+if (process.platform !== "win32") {
+  check("record.sh 可执行", (fs.statSync(path.join(PROJ, "lib", "record.sh")).mode & 0o111) !== 0);
+}
 
 const hostDirs = [
   ".claude/skills",
@@ -167,6 +183,7 @@ const hostDirs = [
   ".workbuddy/skills",
   ".zcode/skills",
   ".agents/skills",
+  ".devin/skills",
 ];
 let linkOk = 0;
 let readableOk = 0;
@@ -175,25 +192,47 @@ for (const d of hostDirs) {
   if (isLink(p)) linkOk++;
   if (exists(path.join(p, "SKILL.md"))) readableOk++;
 }
-check(`${hostDirs.length} 个宿主目录全是 symlink`, linkOk === hostDirs.length, `${linkOk}/${hostDirs.length}`);
+// Windows 无符号链接权限时安装器按设计降级为复制：链接数可为 0，但目标必须全部可读
+const canSymlink = (() => {
+  const probe = path.join(TMP, "ln-probe");
+  try {
+    fs.symlinkSync(".", probe, "dir");
+    fs.rmSync(probe, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+if (canSymlink) {
+  check(`${hostDirs.length} 个宿主目录全是 symlink`, linkOk === hostDirs.length, `${linkOk}/${hostDirs.length}`);
+} else {
+  check("无符号链接权限 → 按设计降级为复制", linkOk === 0, `${linkOk}/${hostDirs.length}`);
+}
 check("链接目标全部可读", readableOk === hostDirs.length, `${readableOk}/${hostDirs.length}`);
-check(
-  "链接指向项目内 skills/ 而非 dist/",
-  shOut(`readlink "${path.join(PROJ, ".claude/skills/active-scan")}"`) === "../../skills/active-scan",
-  shOut(`readlink "${path.join(PROJ, ".claude/skills/active-scan")}"`)
-);
+if (canSymlink) {
+  check(
+    "链接指向项目内 skills/ 而非 dist/",
+    shOut(`readlink "${P(path.join(PROJ, ".claude/skills/active-scan"))}"`) === "../../skills/active-scan",
+    shOut(`readlink "${P(path.join(PROJ, ".claude/skills/active-scan"))}"`)
+  );
+}
 
-const ruleCount = shOut(`find "${PROJ}" -maxdepth 3 -name "*.md" -o -maxdepth 3 -name ".rules" -o -maxdepth 3 -name ".goosehints" | wc -l`);
+const ruleCount = shOut(`find "${P(PROJ)}" -maxdepth 3 -name "*.md" -o -maxdepth 3 -name ".rules" -o -maxdepth 3 -name ".goosehints" | wc -l`);
 check("规则入口已写入", parseInt(ruleCount) >= 20, `${ruleCount.trim()} 个`);
 
+// Devin：规则文件必须带 trigger: always_on（否则宿主不会常驻加载），技能走 .devin/skills 原生目录
+const devinRule = fs.readFileSync(path.join(PROJ, ".devin", "rules", "redteam-skills.md"), "utf8");
+check("Devin 规则带 trigger: always_on", /trigger:\s*always_on/.test(devinRule));
+check("Devin 技能目录可读", exists(path.join(PROJ, ".devin", "skills", "active-scan", "SKILL.md")));
+
 // 幂等
-sh(`"${NODE}" "${INSTALL}" --target "${PROJ}" --ide all`);
+sh(`"${P(NODE)}" "${P(INSTALL)}" --target "${P(PROJ)}" --ide all`);
 const markerCount = fs.readFileSync(path.join(PROJ, "AGENTS.md"), "utf8").split("redteam-skills:start").length - 1;
 check("二次安装不叠加标记块", markerCount === 1, `${markerCount} 个`);
 
 // 不破坏用户内容
 fs.writeFileSync(path.join(PROJ, "CLAUDE.md"), "# 我的项目\n\n自定义规则。\n");
-sh(`"${NODE}" "${INSTALL}" --target "${PROJ}" --ide claude`);
+sh(`"${P(NODE)}" "${P(INSTALL)}" --target "${P(PROJ)}" --ide claude`);
 const claudeTxt = fs.readFileSync(path.join(PROJ, "CLAUDE.md"), "utf8");
 check("用户已有内容保留", claudeTxt.startsWith("# 我的项目"));
 check("追加而非覆盖", claudeTxt.includes("自定义规则") && claudeTxt.includes("redteam-skills:start"));
@@ -201,14 +240,14 @@ check("追加而非覆盖", claudeTxt.includes("自定义规则") && claudeTxt.i
 // --copy 降级
 const CP = path.join(TMP, "copy-proj");
 fs.mkdirSync(CP, { recursive: true });
-sh(`"${NODE}" "${INSTALL}" --target "${CP}" --ide claude --copy`);
+sh(`"${P(NODE)}" "${P(INSTALL)}" --target "${P(CP)}" --ide claude --copy`);
 check("--copy 模式生成真实文件", !isLink(path.join(CP, ".claude/skills/active-scan")));
 check("--copy 内容正确", exists(path.join(CP, ".claude/skills/active-scan/SKILL.md")));
 
 // dry-run
 const DR = path.join(TMP, "dry-proj");
 fs.mkdirSync(DR, { recursive: true });
-sh(`"${NODE}" "${INSTALL}" --target "${DR}" --ide all --dry-run`);
+sh(`"${P(NODE)}" "${P(INSTALL)}" --target "${P(DR)}" --ide all --dry-run`);
 check("--dry-run 不落盘", fs.readdirSync(DR).length === 0, `${fs.readdirSync(DR).join(",") || "空"}`);
 
 // ═══ 4. 记录库 ════════════════════════════════════════════════════════════
@@ -217,7 +256,7 @@ section("4. 记录库：12 实体 / 查询 / 计分 / 转义");
 const RK = path.join(TMP, "record-work");
 fs.mkdirSync(RK, { recursive: true });
 const rec = (args, env = {}) =>
-  shOut(`cd "${RK}" && NO_COLOR=1 REDTEAM_HOME="${path.join(TMP, "rh")}" bash "${RECORD}" ${args}`, {
+  shOut(`cd "${P(RK)}" && NO_COLOR=1 REDTEAM_HOME="${P(path.join(TMP, "rh"))}" bash "${P(RECORD)}" ${args}`, {
     env: { ...process.env, ...env },
   });
 
@@ -322,7 +361,7 @@ section("5. 卸载：精确回滚，不动用户文件");
 const UN = path.join(TMP, "uninstall-proj");
 fs.mkdirSync(UN, { recursive: true });
 fs.writeFileSync(path.join(UN, "AGENTS.md"), "# 我的项目\n\n自定义规则。\n");
-sh(`"${NODE}" "${INSTALL}" --target "${UN}" --ide all`);
+sh(`"${P(NODE)}" "${P(INSTALL)}" --target "${P(UN)}" --ide all`);
 // 用户自己的技能
 const mineDir = path.join(UN, "skills", "my-own-skill");
 fs.mkdirSync(mineDir, { recursive: true });
@@ -330,7 +369,7 @@ fs.writeFileSync(path.join(mineDir, "SKILL.md"), "---\nname: my-own-skill\ndescr
 fs.mkdirSync(path.join(UN, "runs"), { recursive: true });
 fs.writeFileSync(path.join(UN, "runs", "keep.txt"), "keep");
 
-sh(`"${NODE}" "${INSTALL}" --target "${UN}" --uninstall`);
+sh(`"${P(NODE)}" "${P(INSTALL)}" --target "${P(UN)}" --uninstall`);
 
 check("红队技能已移除", !exists(path.join(UN, "skills", "active-scan")));
 check("用户自己的技能保留", exists(path.join(UN, "skills", "my-own-skill", "SKILL.md")));
@@ -354,11 +393,35 @@ fs.writeFileSync(
   path.join(HOME, ".agents", ".skill-lock.json"),
   JSON.stringify({ version: 3, skills: { "user-own": { source: "github", sourceUrl: "https://x/y.git" } } }, null, 2)
 );
+// os.homedir() 在 Windows 看 USERPROFILE、APPDATA 也是真实路径：三个变量一起造假，
+// 否则 --global 会写进真实 home（踩过：测试把 23 个技能装进了 .claude/skills）。
+const FAKE_ENV = {
+  env: {
+    ...process.env,
+    HOME,
+    USERPROFILE: HOME,
+    APPDATA: path.join(HOME, "AppData", "Roaming"),
+  },
+};
 
-sh(`HOME="${HOME}" "${NODE}" "${INSTALL}" --global --ide all`);
+sh(`"${P(NODE)}" "${P(INSTALL)}" --global --ide all`, FAKE_ENV);
 
 check("全局 skills 是真实文件", !isLink(path.join(HOME, ".dsh", "skills", "active-scan")));
 check("全局技能可读", exists(path.join(HOME, ".dsh", "skills", "active-scan", "SKILL.md")));
+// Devin 全局：规则走 ~/.devin/rules（全平台），POSIX 技能走 ~/.config/devin/skills
+check("Devin 全局规则就位", exists(path.join(HOME, ".devin", "rules", "redteam-skills.md")));
+check(
+  "Devin 全局规则带 trigger",
+  /trigger:\s*always_on/.test(fs.readFileSync(path.join(HOME, ".devin", "rules", "redteam-skills.md"), "utf8"))
+);
+if (process.platform !== "win32") {
+  check("Devin 全局技能就位", exists(path.join(HOME, ".config", "devin", "skills", "active-scan", "SKILL.md")));
+} else {
+  check(
+    "Devin 全局技能就位（%APPDATA%）",
+    exists(path.join(HOME, "AppData", "Roaming", "devin", "skills", "active-scan", "SKILL.md"))
+  );
+}
 const lockAfter = JSON.parse(fs.readFileSync(path.join(HOME, ".agents", ".skill-lock.json"), "utf8"));
 check("用户 lock 条目保留", "user-own" in lockAfter.skills);
 check(
@@ -367,11 +430,20 @@ check(
   `${Object.values(lockAfter.skills).filter((v) => v.source === "redteam-skills-portable").length}/23`
 );
 
-sh(`HOME="${HOME}" "${NODE}" "${INSTALL}" --global --uninstall`);
+sh(`"${P(NODE)}" "${P(INSTALL)}" --global --uninstall`, FAKE_ENV);
 const lockFinal = JSON.parse(fs.readFileSync(path.join(HOME, ".agents", ".skill-lock.json"), "utf8"));
 check("卸载后只剩用户条目", Object.keys(lockFinal.skills).join(",") === "user-own", Object.keys(lockFinal.skills).join(","));
 check("全局技能已清", !exists(path.join(HOME, ".dsh", "skills", "active-scan")));
 check("全局规则已清", !exists(path.join(HOME, ".codex", "AGENTS.md")));
+check("Devin 全局规则已清", !exists(path.join(HOME, ".devin", "rules", "redteam-skills.md")));
+if (process.platform !== "win32") {
+  check("Devin 全局技能已清", !exists(path.join(HOME, ".config", "devin", "skills", "active-scan")));
+} else {
+  check(
+    "Devin 全局技能已清（%APPDATA%）",
+    !exists(path.join(HOME, "AppData", "Roaming", "devin", "skills", "active-scan"))
+  );
+}
 
 // ═══ 7. 跨平台/可移植 ═════════════════════════════════════════════════════
 section("7. 可移植性：零依赖、可搬家");
@@ -387,17 +459,19 @@ fs.cpSync(ROOT, MOVE, {
   },
 });
 check("无 node_modules 依赖", !exists(path.join(MOVE, "node_modules")));
-const moveBuild = shOut(`"${NODE}" "${path.join(MOVE, "build.mjs")}" 2>&1`);
+const moveBuild = shOut(`"${P(NODE)}" "${P(path.join(MOVE, "build.mjs"))}" 2>&1`);
 check("搬家后仍能构建", moveBuild.includes("已生成"), moveBuild.split("\n").pop());
 check("无外部 npm 依赖", !JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).dependencies);
 
 // 装到搬家后的位置，链接仍指向自身
 const MP = path.join(TMP, "moved-proj");
 fs.mkdirSync(MP, { recursive: true });
-sh(`"${NODE}" "${path.join(MOVE, "install.mjs")}" --target "${MP}" --ide claude`);
-const mvLink = shOut(`readlink "${path.join(MP, ".claude/skills/active-scan")}"`);
-check("搬家后链接指向项目内 skills/", mvLink === "../../skills/active-scan", mvLink);
-check("搬家后链接可读", exists(path.join(MP, ".claude/skills/active-scan/SKILL.md")));
+sh(`"${P(NODE)}" "${P(path.join(MOVE, "install.mjs"))}" --target "${P(MP)}" --ide claude`);
+if (canSymlink) {
+  const mvLink = shOut(`readlink "${P(path.join(MP, ".claude/skills/active-scan"))}"`);
+  check("搬家后链接指向项目内 skills/", mvLink === "../../skills/active-scan", mvLink);
+}
+check("搬家后链接/副本可读", exists(path.join(MP, ".claude/skills/active-scan/SKILL.md")));
 
 // ═══ 汇总 ════════════════════════════════════════════════════════════════
 console.log(`\n${"═".repeat(60)}`);
