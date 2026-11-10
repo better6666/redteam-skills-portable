@@ -39,7 +39,7 @@ Trae 里 Agent 读到就是死路。v2.0 把这些全部改写掉：
 | --- | --- | --- |
 | 通用指令 | `AGENTS.md` | Codex、Antigravity、Devin、Trae、Qoder、CodeBuddy、WorkBuddy、ZCode、Cursor、Copilot、Amp、OpenCode、Crush、Factory、Jules 等 60k+ 项目在用的开放格式 |
 | 通用规则目录 | `.agents/rules/*.md` | Google Antigravity（也认 `AGENTS.md` / `GEMINI.md`） |
-| 通用技能目录 | `.agents/skills/<name>/SKILL.md` | DeepSeek Harness、Antigravity，以及所有遵循 Agent Skills 的宿主 |
+| 通用技能目录 | `.agents/skills/<name>/SKILL.md` | DeepSeek Harness、Antigravity、Devin，以及所有遵循 Agent Skills 的宿主 |
 
 ## 快速开始
 
@@ -152,7 +152,7 @@ $RT_LIB/record.sh report                       # 汇总 + 总分
 | **CodeBuddy（国内）** | `CODEBUDDY.md` + `.codebuddy/general/rules/` + `.codebuddycn/skills/` | `~/.codebuddycn/skills/` | 独立配置目录 |
 | **WorkBuddy** | `WORKBUDDY.md` + `.workbuddy/skills/` | `~/.workbuddy/skills/` | 也读 `AGENTS.md` |
 | **ZCode** | `AGENTS.md` + `.zcode/skills/` | `~/.zcode/skills/` | 也读 `CLAUDE.md` |
-| **Devin** | `AGENTS.md` + `.devin/rules/redteam-skills.md` | — | 官方主推 `AGENTS.md` |
+| **Devin** | `AGENTS.md` + `.devin/rules/redteam-skills.md` + `.devin/skills/` | `~/.devin/rules/` + `%APPDATA%\devin\skills`（Linux/macOS 为 `~/.config/devin/skills`） | `trigger: always_on`；原生 Skill 目录 |
 | **Google Antigravity** | `AGENTS.md` / `GEMINI.md` / `.agents/rules/` + `.agents/skills/` | — | 三个入口任选其一 |
 | **DeepSeek Harness（DSH）** | `AGENTS.md` + `.agents/skills/` | `~/.agents/skills/` + `~/.dsh/skills/` | 技能是原生机制 |
 | **Amazon Q Developer** | `.amazonq/rules/redteam-skills.md` | — | |

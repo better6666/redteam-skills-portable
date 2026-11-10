@@ -61,7 +61,13 @@ export const TARGETS = {
   },
   workbuddy: { label: "WorkBuddy", shared: "WORKBUDDY.md", skillsDir: ".workbuddy/skills", detect: ["WORKBUDDY.md", ".workbuddy"] },
   zcode: { label: "ZCode", shared: "AGENTS.md", skillsDir: ".zcode/skills", detect: [".zcode"] },
-  devin: { label: "Devin", shared: "AGENTS.md", dedicated: ".devin/rules/redteam-skills.md", detect: [".devin"] },
+  devin: {
+    label: "Devin",
+    shared: "AGENTS.md",
+    dedicated: ".devin/rules/redteam-skills.md",
+    skillsDir: ".devin/skills",
+    detect: [".devin"],
+  },
   antigravity: {
     label: "Google Antigravity",
     shared: "AGENTS.md",
@@ -105,9 +111,25 @@ export const GLOBAL_TARGETS = {
   codebuddycn: { label: "CodeBuddy 国内版", skills: ".codebuddycn/skills" },
   workbuddy: { label: "WorkBuddy", skills: ".workbuddy/skills" },
   zcode: { label: "ZCode", skills: ".zcode/skills" },
+  devin: {
+    label: "Devin",
+    // ~/.devin/rules/*.md 全平台生效（官方文档）；trigger 在文件 frontmatter 里声明
+    rule: ".devin/rules/redteam-skills.md",
+    source: ".devin/rules/redteam-skills.md",
+    mode: "dedicated",
+    // Windows 全局技能目录在 %APPDATA%\devin（可能不在 home 里），返回绝对路径；
+    // Linux/macOS 走 XDG 约定的 ~/.config/devin
+    skills:
+      process.platform === "win32"
+        ? path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "devin", "skills")
+        : ".config/devin/skills",
+  },
 };
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** 落点解析：相对路径拼到 root 下；绝对路径（%APPDATA% 这类可能不在 home 的）原样用 */
+const under = (root, rel) => (path.isAbsolute(rel) ? rel : path.join(root, rel));
 
 // ── 标记块：幂等写入 ────────────────────────────────────────────────────────
 function upsertBlock(file, body, dryRun) {
@@ -285,8 +307,9 @@ function printList() {
   }
   console.log("\n全局（--global）：");
   for (const [k, t] of Object.entries(GLOBAL_TARGETS)) {
-    const where = [t.rule || "", t.skills ? `${t.skills}/` : ""].filter(Boolean).join("  + ") || "-";
-    console.log(`${k.padEnd(12)} ~/${where}`);
+    const pretty = (p) => (path.isAbsolute(p) ? p : `~/${p}`);
+    const where = [t.rule ? pretty(t.rule) : "", t.skills ? `${pretty(t.skills)}/` : ""].filter(Boolean).join("  + ") || "-";
+    console.log(`${k.padEnd(12)} ${where}`);
   }
   console.log("\n技能真身：skills/<name>/SKILL.md（一份，其余宿主目录指向它）");
   console.log("记录库：  lib/record.sh");
@@ -299,12 +322,12 @@ function uninstall(root, { dryRun }) {
   console.log(`redteam-skills-portable v${VERSION} [卸载]${dryRun ? " [dry-run]" : ""}`);
   console.log(`目标：${root}\n`);
   for (const rel of m.blocks || []) {
-    const s = removeBlock(path.join(root, rel), dryRun);
+    const s = removeBlock(under(root, rel), dryRun);
     console.log(`  ${s === "removed" ? "-" : "·"} ${rel}  (${s})`);
     if (s === "removed") n++;
   }
   for (const rel of m.files || []) {
-    const p = path.join(root, rel);
+    const p = under(root, rel);
     if (fs.existsSync(p) || isLink(p)) {
       if (!dryRun) fs.rmSync(p, { recursive: true, force: true });
       console.log(`  - ${rel}`);
@@ -312,7 +335,7 @@ function uninstall(root, { dryRun }) {
     }
   }
   for (const rel of m.skillDirs || []) {
-    const p = path.join(root, rel);
+    const p = under(root, rel);
     if (!fs.existsSync(p) && !isLink(p)) continue;
 
     if (isLink(p)) {
@@ -389,7 +412,7 @@ function isLink(p) {
 function pruneEmptyDirs(root, startDirs) {
   const candidates = new Set();
   for (const rel of startDirs) {
-    let d = path.dirname(path.join(root, rel));
+    let d = path.dirname(under(root, rel));
     while (d.startsWith(root) && d !== root) {
       candidates.add(d);
       d = path.dirname(d);
@@ -464,26 +487,26 @@ function main() {
     for (const id of ids) {
       const t = GLOBAL_TARGETS[id];
       if (!skillsOnly && t.rule) {
-        const dest = path.join(root, t.rule);
+        const dest = under(root, t.rule);
         if (t.mode === "dedicated") {
-          // dedicated：整文件覆盖，保留 frontmatter（Qoder/Kiro 靠它判定 always_on）
+          // dedicated：整文件覆盖，保留 frontmatter（Qoder/Kiro/Devin 靠它判定 always_on）
           if (!dryRun) {
             fs.mkdirSync(path.dirname(dest), { recursive: true });
             fs.copyFileSync(path.join(DIST, t.source), dest);
           }
-          console.log(`  + ~/${t.rule}  (${t.label}, dedicated)`);
+          console.log(`  + ${path.isAbsolute(t.rule) ? t.rule : `~/${t.rule}`}  (${t.label}, dedicated)`);
           if (!manifest.files.includes(t.rule)) manifest.files.push(t.rule);
         } else {
           const status = upsertBlock(dest, body, dryRun);
-          console.log(`  ${status === "created" ? "+" : "~"} ~/${t.rule}  (${t.label}, ${status})`);
+          console.log(`  ${status === "created" ? "+" : "~"} ${path.isAbsolute(t.rule) ? t.rule : `~/${t.rule}`}  (${t.label}, ${status})`);
           if (!manifest.blocks.includes(t.rule)) manifest.blocks.push(t.rule);
         }
       }
       if (t.skills && !done.has(t.skills)) {
         done.add(t.skills);
         // 全局：必须复制成独立副本。指向包内 dist/ 的链接在包被移动/删除后就断了。
-        const r = linkOrCopy(canonical, path.join(root, t.skills), { dryRun, copy: true });
-        console.log(`  + ~/${t.skills}/  (${t.label}, ${r.count} 个技能, ${r.mode})`);
+        const r = linkOrCopy(canonical, under(root, t.skills), { dryRun, copy: true });
+        console.log(`  + ${path.isAbsolute(t.skills) ? t.skills : `~/${t.skills}`}/  (${t.label}, ${r.count} 个技能, ${r.mode})`);
         if (!manifest.skillDirs.includes(t.skills)) manifest.skillDirs.push(t.skills);
       }
     }
